@@ -40,3 +40,13 @@ export { EmptyState } from './EmptyState'
 export { PageHeader } from './PageHeader'
 
 export { KpiCard, StatGrid } from './KpiCard'
+
+export { DataTable } from './DataTable'
+export type { Column } from './DataTable'
+
+export { ActionMenu } from './ActionMenu'
+export type { ActionItem } from './ActionMenu'
+
+export { Pagination } from './Pagination'
+
+export { FilterBar } from './FilterBar'
