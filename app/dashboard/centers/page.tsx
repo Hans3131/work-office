@@ -3,19 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
-  MapPin,
-  Plus,
-  Search,
-  Building,
-  Users,
-  CalendarDays,
-  Laptop,
-  Edit,
-  Trash2,
-  Loader2,
-  Phone,
-  Mail,
+  MapPin, Plus, Building, Users, CalendarDays, Laptop, Edit, Trash2,
+  Phone, Mail as MailIcon, ExternalLink,
 } from 'lucide-react'
+import {
+  PageHeader, KpiCard, StatGrid, FilterBar, Card, Badge, Spinner,
+  EmptyState, Button, ActionMenu, ConfirmDialog,
+} from '@/components/ui'
 import toast from 'react-hot-toast'
 
 interface Center {
@@ -28,232 +22,200 @@ interface Center {
   phone: string | null
   email: string | null
   isActive: boolean
-  createdAt: string
-  _count: {
-    users: number
+  _count?: {
     enterprises: number
     meetingRooms: number
     coworkingSpaces: number
+    users: number
   }
 }
 
 export default function CentersPage() {
   const [centers, setCenters] = useState<Center[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<Center | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchCenters = () => {
-    const params = new URLSearchParams()
-    if (searchTerm) params.set('search', searchTerm)
-
     setLoading(true)
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
     fetch(`/api/centers?${params.toString()}`)
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(data => {
-        setCenters(data.centers || [])
-        setError(null)
-      })
-      .catch(() => setError('Erreur lors du chargement des centres'))
+      .then(d => setCenters(d.centers || []))
+      .catch(() => toast.error('Erreur'))
       .finally(() => setLoading(false))
   }
+  useEffect(fetchCenters, [search])
 
-  useEffect(fetchCenters, [searchTerm])
-
-  const handleDelete = async (center: Center) => {
-    if (!confirm(`Supprimer le centre "${center.name}" ?`)) return
-    setDeletingId(center.id)
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    setDeleting(true)
     try {
-      const res = await fetch(`/api/centers/${center.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/centers/${confirmDelete.id}`, { method: 'DELETE' })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        toast.error(data.error || 'Suppression impossible')
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error || 'Erreur')
         return
       }
-      toast.success(`Centre "${center.name}" supprimé`)
+      toast.success('Centre supprimé')
+      setConfirmDelete(null)
       fetchCenters()
     } catch {
-      toast.error('Erreur réseau')
+      toast.error('Erreur')
     } finally {
-      setDeletingId(null)
+      setDeleting(false)
     }
   }
 
-  const totalUsers = centers.reduce((s, c) => s + c._count.users, 0)
-  const totalEnterprises = centers.reduce((s, c) => s + c._count.enterprises, 0)
-  const totalRooms = centers.reduce((s, c) => s + c._count.meetingRooms, 0)
-  const totalSpaces = centers.reduce((s, c) => s + c._count.coworkingSpaces, 0)
-
-  const stats = [
-    { title: 'Centres', value: centers.length, icon: MapPin, color: 'blue' },
-    { title: 'Utilisateurs', value: totalUsers, icon: Users, color: 'green' },
-    { title: 'Entreprises', value: totalEnterprises, icon: Building, color: 'purple' },
-    { title: 'Ressources', value: totalRooms + totalSpaces, icon: CalendarDays, color: 'orange' },
-  ]
-
-  const StatCard = ({ title, value, icon: Icon, color }: any) => {
-    const cls: Record<string, string> = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      purple: 'bg-purple-500',
-      orange: 'bg-orange-500',
-    }
-    return (
-      <div className="stat-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value.toLocaleString('fr-FR')}</p>
-          </div>
-          <div className={`p-3 rounded-full ${cls[color]}`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const total = centers.length
+  const totalEnterprises = centers.reduce((s, c) => s + (c._count?.enterprises || 0), 0)
+  const totalRooms = centers.reduce((s, c) => s + (c._count?.meetingRooms || 0), 0)
+  const totalUsers = centers.reduce((s, c) => s + (c._count?.users || 0), 0)
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Centres</h1>
-          <p className="text-gray-600">Gérez vos centres de coworking et de domiciliation</p>
-        </div>
-        <Link href="/dashboard/centers/nouveau" className="btn-primary">
-          <Plus className="h-5 w-5" />
-          Nouveau centre
-        </Link>
-      </div>
+    <div className="p-6 space-y-6 animate-fade-in">
+      <PageHeader
+        title="Centres"
+        description="Gestion multi-centres : domiciliation, salles et espaces coworking"
+        actions={
+          <Link href="/dashboard/centers/nouveau">
+            <Button iconLeft={<Plus className="h-4 w-4" />}>Nouveau centre</Button>
+          </Link>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((s, i) => (
-          <StatCard key={i} {...s} />
-        ))}
-      </div>
+      <StatGrid cols={4}>
+        <KpiCard label="Centres" value={total} icon={MapPin} tone="electric" loading={loading} />
+        <KpiCard label="Entreprises domiciliées" value={totalEnterprises} icon={Building} tone="success" loading={loading} />
+        <KpiCard label="Salles" value={totalRooms} icon={CalendarDays} tone="gold" loading={loading} />
+        <KpiCard label="Utilisateurs" value={totalUsers} icon={Users} tone="info" loading={loading} />
+      </StatGrid>
 
-      <div className="card">
-        <div className="p-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Rechercher un centre..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-10 form-input"
-            />
-          </div>
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Rechercher un centre par nom ou ville..."
+      />
 
       {loading ? (
-        <div className="flex items-center justify-center p-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-        </div>
-      ) : error ? (
-        <div className="card p-6 bg-red-50 text-red-700">{error}</div>
+        <Card className="p-12 text-center"><Spinner size="lg" /></Card>
+      ) : centers.length === 0 ? (
+        <Card className="p-2">
+          <EmptyState
+            icon={MapPin}
+            title="Aucun centre"
+            description="Crée ton premier centre pour démarrer."
+            action={
+              <Link href="/dashboard/centers/nouveau">
+                <Button iconLeft={<Plus className="h-4 w-4" />}>Créer un centre</Button>
+              </Link>
+            }
+          />
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {centers.length === 0 && (
-            <div className="col-span-full card p-12 text-center text-gray-500">
-              Aucun centre enregistré.
-            </div>
-          )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {centers.map(c => (
-            <div key={c.id} className="card hover:shadow-lg transition-shadow">
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                        <MapPin className="h-5 w-5 text-primary-600" />
+            <Card key={c.id} variant="default" className="overflow-hidden group hover:shadow-soft-md transition-all duration-300">
+              {/* Header avec gradient */}
+              <div className="relative h-28 bg-gradient-to-br from-electric-600 via-electric-700 to-ink-800 overflow-hidden">
+                <div className="absolute inset-0 opacity-20" style={{
+                  backgroundImage: 'radial-gradient(circle at 80% 20%, rgba(201,162,39,0.6) 0, transparent 50%)',
+                }} />
+                <div className="absolute top-3 left-4 right-4 flex items-start justify-between">
+                  {c.isActive ? (
+                    <Badge tone="success" size="sm" dot className="!bg-white/15 !text-white !ring-white/20 backdrop-blur">
+                      Actif
+                    </Badge>
+                  ) : (
+                    <Badge tone="neutral" size="sm" className="!bg-white/15 !text-white !ring-white/20 backdrop-blur">
+                      Inactif
+                    </Badge>
+                  )}
+                  <ActionMenu
+                    align="right"
+                    trigger={
+                      <div className="h-8 w-8 rounded-md bg-white/10 backdrop-blur ring-1 ring-white/20 inline-flex items-center justify-center text-white">
+                        <Edit className="h-3.5 w-3.5" />
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-900">{c.name}</h3>
-                    </div>
-                  </div>
-                  <span
-                    className={`status-badge ${
-                      c.isActive ? 'status-active' : 'bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    {c.isActive ? 'Actif' : 'Inactif'}
-                  </span>
+                    }
+                    items={[
+                      { label: 'Voir détails', icon: ExternalLink, href: `/dashboard/centers/${c.id}` },
+                      { label: 'Modifier', icon: Edit, href: `/dashboard/centers/${c.id}/edit` },
+                      'divider',
+                      { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(c) },
+                    ]}
+                  />
                 </div>
-
-                <div className="space-y-1 text-sm text-gray-600 mb-4">
-                  <p>{c.address}</p>
-                  <p>
-                    {c.postalCode} {c.city}
+                <div className="absolute bottom-3 left-4 right-4">
+                  <h3 className="text-lg font-semibold tracking-tight text-white">{c.name}</h3>
+                  <p className="text-2xs text-white/70 inline-flex items-center gap-1 mt-0.5">
+                    <MapPin className="h-3 w-3" />
+                    {c.city}, {c.country}
                   </p>
-                  <p className="text-xs text-gray-500">{c.country}</p>
                 </div>
+              </div>
 
-                {(c.phone || c.email) && (
-                  <div className="space-y-1 text-sm text-gray-600 mb-4">
-                    {c.phone && (
-                      <div className="flex items-center">
-                        <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                        {c.phone}
-                      </div>
-                    )}
+              <div className="p-5 space-y-4">
+                {/* Address */}
+                <p className="text-xs text-text-muted leading-relaxed">
+                  {c.address}<br />
+                  {c.postalCode} {c.city}
+                </p>
+
+                {/* Contact */}
+                {(c.email || c.phone) && (
+                  <div className="space-y-1.5">
                     {c.email && (
-                      <div className="flex items-center truncate">
-                        <Mail className="h-4 w-4 mr-2 text-gray-400 shrink-0" />
-                        <span className="truncate">{c.email}</span>
-                      </div>
+                      <a href={`mailto:${c.email}`} className="flex items-center gap-2 text-2xs text-text-muted hover:text-text transition-colors">
+                        <MailIcon className="h-3 w-3" />
+                        {c.email}
+                      </a>
+                    )}
+                    {c.phone && (
+                      <a href={`tel:${c.phone}`} className="flex items-center gap-2 text-2xs text-text-muted hover:text-text transition-colors">
+                        <Phone className="h-3 w-3" />
+                        {c.phone}
+                      </a>
                     )}
                   </div>
                 )}
 
-                <div className="grid grid-cols-4 gap-2 text-center pt-4 border-t border-gray-100">
-                  <div>
-                    <Users className="h-4 w-4 mx-auto text-gray-400 mb-1" />
-                    <p className="text-sm font-semibold text-gray-900">{c._count.users}</p>
-                    <p className="text-xs text-gray-500">Users</p>
+                {/* Stats grid */}
+                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
+                  <div className="text-center">
+                    <Building className="h-3.5 w-3.5 mx-auto text-text-subtle mb-1" />
+                    <p className="text-md font-semibold text-text nums-tabular">{c._count?.enterprises || 0}</p>
+                    <p className="text-2xs text-text-subtle">Entreprises</p>
                   </div>
-                  <div>
-                    <Building className="h-4 w-4 mx-auto text-gray-400 mb-1" />
-                    <p className="text-sm font-semibold text-gray-900">{c._count.enterprises}</p>
-                    <p className="text-xs text-gray-500">Entr.</p>
+                  <div className="text-center border-x border-border">
+                    <CalendarDays className="h-3.5 w-3.5 mx-auto text-text-subtle mb-1" />
+                    <p className="text-md font-semibold text-text nums-tabular">{c._count?.meetingRooms || 0}</p>
+                    <p className="text-2xs text-text-subtle">Salles</p>
                   </div>
-                  <div>
-                    <CalendarDays className="h-4 w-4 mx-auto text-gray-400 mb-1" />
-                    <p className="text-sm font-semibold text-gray-900">{c._count.meetingRooms}</p>
-                    <p className="text-xs text-gray-500">Salles</p>
+                  <div className="text-center">
+                    <Users className="h-3.5 w-3.5 mx-auto text-text-subtle mb-1" />
+                    <p className="text-md font-semibold text-text nums-tabular">{c._count?.users || 0}</p>
+                    <p className="text-2xs text-text-subtle">Users</p>
                   </div>
-                  <div>
-                    <Laptop className="h-4 w-4 mx-auto text-gray-400 mb-1" />
-                    <p className="text-sm font-semibold text-gray-900">{c._count.coworkingSpaces}</p>
-                    <p className="text-xs text-gray-500">Cowork.</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end gap-2">
-                  <Link
-                    href={`/dashboard/centers/${c.id}`}
-                    className="p-2 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(c)}
-                    disabled={deletingId === c.id}
-                    className="p-2 text-red-400 hover:text-red-600 rounded hover:bg-red-50 disabled:opacity-50"
-                  >
-                    {deletingId === c.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </button>
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDelete}
+        title={`Supprimer "${confirmDelete?.name}" ?`}
+        description="Cette action est irréversible. Toutes les ressources liées seront affectées."
+        confirmLabel="Supprimer"
+        tone="danger"
+        loading={deleting}
+      />
     </div>
   )
 }

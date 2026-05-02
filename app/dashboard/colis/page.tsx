@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import {
-  Package,
-  Plus,
-  Search,
-  CheckCircle,
-  Clock,
-  RotateCcw,
-  Eye,
-  Loader2,
+  Package, Plus, CheckCircle, Inbox, RotateCcw, Trash2, Building, MapPin,
 } from 'lucide-react'
+import {
+  PageHeader, KpiCard, StatGrid, FilterBar, DataTable, ActionMenu,
+  ConfirmDialog, Button, Select, StatusBadge,
+} from '@/components/ui'
+import type { Column } from '@/components/ui'
+import toast from 'react-hot-toast'
 
 interface PackageItem {
   id: string
@@ -26,157 +25,203 @@ interface PackageItem {
   center: { id: string; name: string } | null
 }
 
-const statusLabel = (s: string) =>
-  ({ RECEIVED: 'Reçu', COLLECTED: 'Récupéré', RETURNED: 'Retourné' }[s] || s)
-const statusColor = (s: string) =>
-  ({
-    RECEIVED: 'bg-blue-100 text-blue-800',
-    COLLECTED: 'bg-green-100 text-green-800',
-    RETURNED: 'bg-orange-100 text-orange-800',
-  }[s] || 'bg-gray-100 text-gray-800')
-
 export default function PackagesPage() {
   const [packages, setPackages] = useState<PackageItem[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<PackageItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
+  const fetchPackages = () => {
     const params = new URLSearchParams()
-    if (searchTerm) params.set('search', searchTerm)
+    if (search) params.set('search', search)
     if (statusFilter !== 'all') params.set('status', statusFilter)
-
     setLoading(true)
     fetch(`/api/packages?${params.toString()}`)
-      .then(r => r.ok ? r.json() : Promise.reject(r))
-      .then(data => {
-        setPackages(data.packages || [])
-        setError(null)
-      })
-      .catch(() => setError('Erreur lors du chargement des colis'))
+      .then(r => (r.ok ? r.json() : Promise.reject(r)))
+      .then(d => setPackages(d.packages || []))
+      .catch(() => toast.error('Erreur'))
       .finally(() => setLoading(false))
-  }, [searchTerm, statusFilter])
+  }
+  useEffect(fetchPackages, [search, statusFilter])
 
-  const stats = [
-    { title: 'Total colis', value: packages.length, icon: Package, color: 'blue' },
-    { title: 'En attente', value: packages.filter(p => p.status === 'RECEIVED').length, icon: Clock, color: 'orange' },
-    { title: 'Récupérés', value: packages.filter(p => p.status === 'COLLECTED').length, icon: CheckCircle, color: 'green' },
-    { title: 'Retournés', value: packages.filter(p => p.status === 'RETURNED').length, icon: RotateCcw, color: 'purple' },
-  ]
-
-  const StatCard = ({ title, value, icon: Icon, color }: any) => {
-    const cls: Record<string, string> = {
-      blue: 'bg-blue-500', green: 'bg-green-500', purple: 'bg-purple-500', orange: 'bg-orange-500',
+  const markCollected = async (p: PackageItem) => {
+    setUpdatingId(p.id)
+    try {
+      const res = await fetch(`/api/packages/${p.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'COLLECTED' }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Colis marqué récupéré')
+      fetchPackages()
+    } catch {
+      toast.error('Erreur')
+    } finally {
+      setUpdatingId(null)
     }
-    return (
-      <div className="stat-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value.toLocaleString('fr-FR')}</p>
-          </div>
-          <div className={`p-3 rounded-full ${cls[color]}`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
+  }
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/packages/${confirmDelete.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
+      toast.success('Colis supprimé')
+      setConfirmDelete(null)
+      fetchPackages()
+    } catch {
+      toast.error('Erreur')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const stats = {
+    total: packages.length,
+    received: packages.filter(p => p.status === 'RECEIVED').length,
+    collected: packages.filter(p => p.status === 'COLLECTED').length,
+    returned: packages.filter(p => p.status === 'RETURNED').length,
+  }
+
+  const columns: Column<PackageItem>[] = useMemo(() => [
+    {
+      key: 'tracking',
+      header: 'N° Tracking',
+      sortable: true,
+      render: p => <span className="font-mono text-2xs font-medium text-text">{p.tracking}</span>,
+    },
+    {
+      key: 'recipient',
+      header: 'Destinataire',
+      sortable: true,
+      render: p => (
+        <div>
+          <p className="font-medium text-text">{p.recipient}</p>
+          {p.notes && <p className="text-2xs text-text-subtle truncate max-w-[200px]">{p.notes}</p>}
         </div>
-      </div>
-    )
+      ),
+    },
+    {
+      key: 'sender',
+      header: 'Expéditeur',
+      render: p => <span className="text-sm text-text-muted">{p.sender || '—'}</span>,
+    },
+    {
+      key: 'enterprise',
+      header: 'Entreprise',
+      sortable: true,
+      sortValue: p => p.enterprise?.name || '',
+      render: p => p.enterprise ? (
+        <span className="inline-flex items-center gap-1 text-sm">
+          <Building className="h-3 w-3 text-text-subtle" />
+          {p.enterprise.name}
+        </span>
+      ) : (
+        <span className="text-text-subtle">Personnel</span>
+      ),
+    },
+    {
+      key: 'receivedAt',
+      header: 'Reçu',
+      sortable: true,
+      sortValue: p => new Date(p.receivedAt).getTime(),
+      render: p => (
+        <span className="text-xs text-text-muted nums-tabular">
+          {new Date(p.receivedAt).toLocaleDateString('fr-FR')}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Statut',
+      sortable: true,
+      render: p => <StatusBadge status={p.status} />,
+    },
+    {
+      key: '_actions',
+      header: '',
+      width: '60px',
+      align: 'right',
+      render: p => (
+        <ActionMenu
+          items={[
+            ...(p.status !== 'COLLECTED'
+              ? [{ label: 'Marquer récupéré', icon: CheckCircle, onClick: () => markCollected(p) }]
+              : []),
+            'divider',
+            { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(p) },
+          ]}
+        />
+      ),
+    },
+  ], [])
+
+  const chips = []
+  if (statusFilter !== 'all') {
+    chips.push({
+      label: { received: 'Reçus', collected: 'Récupérés', returned: 'Retournés' }[statusFilter] || statusFilter,
+      value: 'status',
+      onRemove: () => setStatusFilter('all'),
+    })
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestion des colis</h1>
-          <p className="text-gray-600">Suivi des colis reçus pour les entreprises domiciliées</p>
-        </div>
-        <Link href="/dashboard/colis/nouveau" className="btn-primary">
-          <Plus className="h-5 w-5" />
-          Enregistrer un colis
-        </Link>
-      </div>
+    <div className="p-6 space-y-6 animate-fade-in">
+      <PageHeader
+        title="Colis"
+        description="Gestion des colis reçus pour les entreprises domiciliées"
+        actions={
+          <Link href="/dashboard/colis/nouveau">
+            <Button iconLeft={<Plus className="h-4 w-4" />}>Enregistrer un colis</Button>
+          </Link>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((s, i) => <StatCard key={i} {...s} />)}
-      </div>
+      <StatGrid cols={4}>
+        <KpiCard label="Total" value={stats.total} icon={Package} tone="electric" loading={loading} />
+        <KpiCard label="Reçus" value={stats.received} icon={Inbox} tone="warning" loading={loading} />
+        <KpiCard label="Récupérés" value={stats.collected} icon={CheckCircle} tone="success" loading={loading} />
+        <KpiCard label="Retournés" value={stats.returned} icon={RotateCcw} tone="neutral" loading={loading} />
+      </StatGrid>
 
-      <div className="card">
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher (tracking, destinataire, expéditeur)..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-10 form-input"
-                />
-              </div>
-            </div>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="form-input">
-              <option value="all">Tous les statuts</option>
-              <option value="received">Reçus</option>
-              <option value="collected">Récupérés</option>
-              <option value="returned">Retournés</option>
-            </select>
-          </div>
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Rechercher par tracking, destinataire..."
+        chips={chips}
+        filters={
+          <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="!h-9 w-auto min-w-[140px]">
+            <option value="all">Tous statuts</option>
+            <option value="received">Reçus</option>
+            <option value="collected">Récupérés</option>
+            <option value="returned">Retournés</option>
+          </Select>
+        }
+      />
 
-      <div className="card">
-        {loading ? (
-          <div className="flex items-center justify-center p-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-          </div>
-        ) : error ? (
-          <div className="p-6 bg-red-50 text-red-700">{error}</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className="table-header">Tracking</th>
-                  <th className="table-header">Destinataire</th>
-                  <th className="table-header">Expéditeur</th>
-                  <th className="table-header">Entreprise</th>
-                  <th className="table-header">Reçu le</th>
-                  <th className="table-header">Statut</th>
-                  <th className="table-header">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {packages.length === 0 && (
-                  <tr><td colSpan={7} className="p-8 text-center text-gray-500">Aucun colis trouvé.</td></tr>
-                )}
-                {packages.map(pkg => (
-                  <tr key={pkg.id} className="hover:bg-gray-50">
-                    <td className="table-cell">
-                      <span className="font-mono text-sm">{pkg.tracking}</span>
-                    </td>
-                    <td className="table-cell">{pkg.recipient}</td>
-                    <td className="table-cell">{pkg.sender || '—'}</td>
-                    <td className="table-cell">{pkg.enterprise?.name || '—'}</td>
-                    <td className="table-cell">
-                      {new Date(pkg.receivedAt).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="table-cell">
-                      <span className={`status-badge ${statusColor(pkg.status)}`}>{statusLabel(pkg.status)}</span>
-                    </td>
-                    <td className="table-cell">
-                      <button className="p-1 text-gray-400 hover:text-gray-600">
-                        <Eye className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={packages}
+        loading={loading}
+        emptyTitle="Aucun colis"
+        emptyDescription="Commence par enregistrer un colis pour suivre les réceptions."
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDelete}
+        title={`Supprimer ce colis ?`}
+        description={`Le colis ${confirmDelete?.tracking} sera définitivement supprimé.`}
+        confirmLabel="Supprimer"
+        tone="danger"
+        loading={deleting}
+      />
     </div>
   )
 }

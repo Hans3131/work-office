@@ -42,7 +42,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="h-screen bg-bg">
       <div className="flex h-full">
         <Sidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
         <div className="flex-1 flex flex-col overflow-hidden">

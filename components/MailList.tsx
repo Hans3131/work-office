@@ -1,18 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import {
-  Mail,
-  Plus,
-  Search,
-  CheckCircle,
-  Clock,
-  RotateCcw,
-  Trash2,
-  Loader2,
-  Inbox,
+  Mail, Plus, CheckCircle, Inbox, RotateCcw, Trash2, Building, MapPin,
 } from 'lucide-react'
+import {
+  PageHeader, KpiCard, StatGrid, FilterBar, DataTable, ActionMenu,
+  ConfirmDialog, Button, Select, StatusBadge,
+} from '@/components/ui'
+import type { Column } from '@/components/ui'
 import toast from 'react-hot-toast'
 
 interface MailItem {
@@ -27,19 +24,7 @@ interface MailItem {
   center: { id: string; name: string } | null
 }
 
-const statusLabel = (s: string) =>
-  ({ RECEIVED: 'Reçu', COLLECTED: 'Récupéré', RETURNED: 'Retourné' }[s] || s)
-const statusColor = (s: string) =>
-  ({
-    RECEIVED: 'bg-blue-100 text-blue-800',
-    COLLECTED: 'bg-green-100 text-green-800',
-    RETURNED: 'bg-orange-100 text-orange-800',
-  }[s] || 'bg-gray-100 text-gray-800')
-
 interface Props {
-  /**
-   * Filtre initial sur le statut (utile pour la page "Courriers à enlever").
-   */
   forcedStatus?: 'received' | 'collected' | 'returned'
   title?: string
   description?: string
@@ -47,30 +32,27 @@ interface Props {
 
 export default function MailList({ forcedStatus, title, description }: Props) {
   const [mails, setMails] = useState<MailItem[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>(forcedStatus || 'all')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<MailItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchMails = () => {
     const params = new URLSearchParams()
-    if (searchTerm) params.set('search', searchTerm)
-    const effectiveStatus = forcedStatus || statusFilter
-    if (effectiveStatus !== 'all') params.set('status', effectiveStatus)
-
+    if (search) params.set('search', search)
+    const eff = forcedStatus || statusFilter
+    if (eff !== 'all') params.set('status', eff)
     setLoading(true)
     fetch(`/api/mails?${params.toString()}`)
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(data => {
-        setMails(data.mails || [])
-        setError(null)
-      })
-      .catch(() => setError('Erreur lors du chargement des courriers'))
+      .then(d => setMails(d.mails || []))
+      .catch(() => toast.error('Erreur de chargement'))
       .finally(() => setLoading(false))
   }
 
-  useEffect(fetchMails, [searchTerm, statusFilter, forcedStatus])
+  useEffect(fetchMails, [search, statusFilter, forcedStatus])
 
   const markCollected = async (m: MailItem) => {
     setUpdatingId(m.id)
@@ -80,180 +62,182 @@ export default function MailList({ forcedStatus, title, description }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'COLLECTED' }),
       })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        toast.error(d.error || 'Erreur')
-        return
-      }
-      toast.success(`Courrier de ${m.recipient} marqué récupéré`)
+      if (!res.ok) throw new Error()
+      toast.success(`Courrier marqué récupéré`)
       fetchMails()
     } catch {
-      toast.error('Erreur réseau')
+      toast.error('Erreur')
     } finally {
       setUpdatingId(null)
     }
   }
 
-  const handleDelete = async (m: MailItem) => {
-    if (!confirm(`Supprimer le courrier de ${m.recipient} ?`)) return
-    setUpdatingId(m.id)
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    setDeleting(true)
     try {
-      const res = await fetch(`/api/mails/${m.id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        toast.error(d.error || 'Erreur')
-        return
-      }
+      const res = await fetch(`/api/mails/${confirmDelete.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error()
       toast.success('Courrier supprimé')
+      setConfirmDelete(null)
       fetchMails()
     } catch {
-      toast.error('Erreur réseau')
+      toast.error('Erreur')
     } finally {
-      setUpdatingId(null)
+      setDeleting(false)
     }
   }
 
-  const stats = [
-    { title: 'Total', value: mails.length, icon: Mail, color: 'blue' },
-    { title: 'Reçus', value: mails.filter(m => m.status === 'RECEIVED').length, icon: Inbox, color: 'orange' },
-    { title: 'Récupérés', value: mails.filter(m => m.status === 'COLLECTED').length, icon: CheckCircle, color: 'green' },
-    { title: 'Retournés', value: mails.filter(m => m.status === 'RETURNED').length, icon: RotateCcw, color: 'purple' },
-  ]
+  const stats = {
+    total: mails.length,
+    received: mails.filter(m => m.status === 'RECEIVED').length,
+    collected: mails.filter(m => m.status === 'COLLECTED').length,
+    returned: mails.filter(m => m.status === 'RETURNED').length,
+  }
 
-  const StatCard = ({ title, value, icon: Icon, color }: any) => {
-    const cls: Record<string, string> = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      purple: 'bg-purple-500',
-      orange: 'bg-orange-500',
-    }
-    return (
-      <div className="stat-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value.toLocaleString('fr-FR')}</p>
-          </div>
-          <div className={`p-3 rounded-full ${cls[color]}`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
+  const columns: Column<MailItem>[] = useMemo(() => [
+    {
+      key: 'recipient',
+      header: 'Destinataire',
+      sortable: true,
+      render: m => (
+        <div>
+          <p className="font-medium text-text">{m.recipient}</p>
+          {m.notes && <p className="text-2xs text-text-subtle truncate max-w-[200px]">{m.notes}</p>}
         </div>
-      </div>
-    )
+      ),
+    },
+    {
+      key: 'sender',
+      header: 'Expéditeur',
+      sortable: true,
+      render: m => <span className="text-sm text-text-muted">{m.sender || '—'}</span>,
+    },
+    {
+      key: 'enterprise',
+      header: 'Entreprise',
+      sortable: true,
+      sortValue: m => m.enterprise?.name || '',
+      render: m => m.enterprise ? (
+        <span className="inline-flex items-center gap-1 text-sm">
+          <Building className="h-3 w-3 text-text-subtle" />
+          {m.enterprise.name}
+        </span>
+      ) : (
+        <span className="text-text-subtle">Personnel</span>
+      ),
+    },
+    {
+      key: 'receivedAt',
+      header: 'Reçu',
+      sortable: true,
+      sortValue: m => new Date(m.receivedAt).getTime(),
+      render: m => (
+        <span className="text-xs text-text-muted nums-tabular">
+          {new Date(m.receivedAt).toLocaleDateString('fr-FR')}
+        </span>
+      ),
+    },
+    {
+      key: 'collectedAt',
+      header: 'Récupéré',
+      render: m => m.collectedAt ? (
+        <span className="text-xs text-success nums-tabular">
+          {new Date(m.collectedAt).toLocaleDateString('fr-FR')}
+        </span>
+      ) : (
+        <span className="text-2xs text-text-subtle">—</span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Statut',
+      sortable: true,
+      render: m => <StatusBadge status={m.status} />,
+    },
+    {
+      key: '_actions',
+      header: '',
+      width: '60px',
+      align: 'right',
+      render: m => (
+        <ActionMenu
+          items={[
+            ...(m.status !== 'COLLECTED'
+              ? [{ label: 'Marquer récupéré', icon: CheckCircle, onClick: () => markCollected(m) }]
+              : []),
+            'divider',
+            { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(m) },
+          ]}
+        />
+      ),
+    },
+  ], [])
+
+  const chips = []
+  if (!forcedStatus && statusFilter !== 'all') {
+    chips.push({
+      label: { received: 'Reçus', collected: 'Récupérés', returned: 'Retournés' }[statusFilter] || statusFilter,
+      value: 'status',
+      onRemove: () => setStatusFilter('all'),
+    })
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{title || 'Courriers'}</h1>
-          <p className="text-gray-600">{description || 'Gestion du courrier reçu pour les entreprises domiciliées'}</p>
-        </div>
-        <Link href="/dashboard/courriers/nouveau" className="btn-primary">
-          <Plus className="h-5 w-5" />
-          Enregistrer un courrier
-        </Link>
-      </div>
+    <div className="p-6 space-y-6 animate-fade-in">
+      <PageHeader
+        title={title || 'Courriers'}
+        description={description || 'Gestion du courrier reçu pour les entreprises domiciliées'}
+        actions={
+          <Link href="/dashboard/courriers/nouveau">
+            <Button iconLeft={<Plus className="h-4 w-4" />}>Enregistrer un courrier</Button>
+          </Link>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((s, i) => <StatCard key={i} {...s} />)}
-      </div>
+      <StatGrid cols={4}>
+        <KpiCard label="Total" value={stats.total} icon={Mail} tone="electric" loading={loading} />
+        <KpiCard label="Reçus" value={stats.received} icon={Inbox} tone="warning" loading={loading} />
+        <KpiCard label="Récupérés" value={stats.collected} icon={CheckCircle} tone="success" loading={loading} />
+        <KpiCard label="Retournés" value={stats.returned} icon={RotateCcw} tone="neutral" loading={loading} />
+      </StatGrid>
 
-      <div className="card">
-        <div className="p-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher (destinataire, expéditeur)..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-10 form-input"
-                />
-              </div>
-            </div>
-            {!forcedStatus && (
-              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="form-input">
-                <option value="all">Tous les statuts</option>
-                <option value="received">Reçus</option>
-                <option value="collected">Récupérés</option>
-                <option value="returned">Retournés</option>
-              </select>
-            )}
-          </div>
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Rechercher par destinataire ou expéditeur..."
+        chips={chips}
+        filters={
+          !forcedStatus ? (
+            <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="!h-9 w-auto min-w-[140px]">
+              <option value="all">Tous statuts</option>
+              <option value="received">Reçus</option>
+              <option value="collected">Récupérés</option>
+              <option value="returned">Retournés</option>
+            </Select>
+          ) : null
+        }
+      />
 
-      <div className="card">
-        {loading ? (
-          <div className="flex items-center justify-center p-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-          </div>
-        ) : error ? (
-          <div className="p-6 bg-red-50 text-red-700">{error}</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className="table-header">Destinataire</th>
-                  <th className="table-header">Expéditeur</th>
-                  <th className="table-header">Entreprise</th>
-                  <th className="table-header">Reçu le</th>
-                  <th className="table-header">Récupéré le</th>
-                  <th className="table-header">Statut</th>
-                  <th className="table-header">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {mails.length === 0 && (
-                  <tr><td colSpan={7} className="p-8 text-center text-gray-500">Aucun courrier trouvé.</td></tr>
-                )}
-                {mails.map(m => (
-                  <tr key={m.id} className="hover:bg-gray-50">
-                    <td className="table-cell font-medium">{m.recipient}</td>
-                    <td className="table-cell text-gray-600">{m.sender || '—'}</td>
-                    <td className="table-cell">{m.enterprise?.name || '—'}</td>
-                    <td className="table-cell">{new Date(m.receivedAt).toLocaleDateString('fr-FR')}</td>
-                    <td className="table-cell text-gray-600">
-                      {m.collectedAt ? new Date(m.collectedAt).toLocaleDateString('fr-FR') : '—'}
-                    </td>
-                    <td className="table-cell">
-                      <span className={`status-badge ${statusColor(m.status)}`}>{statusLabel(m.status)}</span>
-                    </td>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-1">
-                        {m.status !== 'COLLECTED' && (
-                          <button
-                            onClick={() => markCollected(m)}
-                            disabled={updatingId === m.id}
-                            className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50"
-                          >
-                            {updatingId === m.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : (
-                              'Marquer récupéré'
-                            )}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDelete(m)}
-                          disabled={updatingId === m.id}
-                          className="p-1 text-red-400 hover:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+      <DataTable
+        columns={columns}
+        data={mails}
+        loading={loading}
+        loadingRows={5}
+        emptyTitle="Aucun courrier"
+        emptyDescription="Aucun courrier ne correspond à votre recherche."
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDelete}
+        title={`Supprimer ce courrier ?`}
+        description={`Le courrier de ${confirmDelete?.recipient} sera définitivement supprimé.`}
+        confirmLabel="Supprimer"
+        tone="danger"
+        loading={deleting}
+      />
     </div>
   )
 }

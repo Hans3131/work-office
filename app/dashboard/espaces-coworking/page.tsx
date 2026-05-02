@@ -3,19 +3,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  Laptop,
-  Plus,
-  Search,
-  Users,
-  MapPin,
-  Edit,
-  Trash2,
-  Eye,
-  Loader2,
-  Calendar,
+  Laptop, Plus, Users, MapPin, Edit, Trash2, Coffee, Wifi, Printer,
+  Lock, Sparkles,
 } from 'lucide-react'
-import toast from 'react-hot-toast'
+import {
+  PageHeader, KpiCard, StatGrid, FilterBar, Card, Badge, Spinner,
+  EmptyState, Button, ActionMenu, ConfirmDialog,
+} from '@/components/ui'
 import { parseJsonArray } from '@/lib/json-array'
+import toast from 'react-hot-toast'
 
 interface CoworkingSpace {
   id: string
@@ -27,222 +23,207 @@ interface CoworkingSpace {
   yearlyRate: number
   amenities: string
   isActive: boolean
-  createdAt: string
   center: { id: string; name: string } | null
-  _count: { subscriptions: number }
+  _count?: { subscriptions: number }
+}
+
+const AMENITY_ICONS: Record<string, any> = {
+  'WiFi haut débit': Wifi,
+  'Café/thé gratuit': Coffee,
+  'Imprimante/scanner': Printer,
+  'Casiers': Lock,
+  'Terrasse': Sparkles,
+  'Salle de détente': Sparkles,
+  'Parking gratuit': Sparkles,
 }
 
 export default function CoworkingSpacesPage() {
   const [spaces, setSpaces] = useState<CoworkingSpace[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<CoworkingSpace | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const fetchSpaces = () => {
-    const params = new URLSearchParams()
-    if (searchTerm) params.set('search', searchTerm)
-
     setLoading(true)
+    const params = new URLSearchParams()
+    if (search) params.set('search', search)
     fetch(`/api/coworking-spaces?${params.toString()}`)
       .then(r => (r.ok ? r.json() : Promise.reject(r)))
-      .then(data => {
-        setSpaces(data.spaces || [])
-        setError(null)
-      })
-      .catch(() => setError('Erreur lors du chargement des espaces'))
+      .then(d => setSpaces(d.spaces || d.coworkingSpaces || []))
+      .catch(() => toast.error('Erreur'))
       .finally(() => setLoading(false))
   }
+  useEffect(fetchSpaces, [search])
 
-  useEffect(fetchSpaces, [searchTerm])
-
-  const handleDelete = async (s: CoworkingSpace) => {
-    if (!confirm(`Supprimer l’espace "${s.name}" ?`)) return
-    setDeletingId(s.id)
+  const handleDelete = async () => {
+    if (!confirmDelete) return
+    setDeleting(true)
     try {
-      const res = await fetch(`/api/coworking-spaces/${s.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/coworking-spaces/${confirmDelete.id}`, { method: 'DELETE' })
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        toast.error(data.error || 'Suppression impossible')
+        const d = await res.json().catch(() => ({}))
+        toast.error(d.error || 'Erreur')
         return
       }
-      toast.success(`Espace "${s.name}" supprimé`)
+      toast.success('Espace supprimé')
+      setConfirmDelete(null)
       fetchSpaces()
     } catch {
-      toast.error('Erreur réseau')
+      toast.error('Erreur')
     } finally {
-      setDeletingId(null)
+      setDeleting(false)
     }
   }
 
   const totalSpots = spaces.reduce((s, sp) => s + sp.totalSpots, 0)
-  const activeSpaces = spaces.filter(s => s.isActive).length
-  const totalSubs = spaces.reduce((s, sp) => s + sp._count.subscriptions, 0)
-
-  const stats = [
-    { title: 'Espaces', value: spaces.length, icon: Laptop, color: 'blue' },
-    { title: 'Actifs', value: activeSpaces, icon: Laptop, color: 'green' },
-    { title: 'Postes totaux', value: totalSpots, icon: Users, color: 'purple' },
-    { title: 'Abonnements', value: totalSubs, icon: Calendar, color: 'orange' },
-  ]
-
-  const StatCard = ({ title, value, icon: Icon, color }: any) => {
-    const cls: Record<string, string> = {
-      blue: 'bg-blue-500',
-      green: 'bg-green-500',
-      purple: 'bg-purple-500',
-      orange: 'bg-orange-500',
-    }
-    return (
-      <div className="stat-card">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold text-gray-900">{value.toLocaleString('fr-FR')}</p>
-          </div>
-          <div className={`p-3 rounded-full ${cls[color]}`}>
-            <Icon className="h-6 w-6 text-white" />
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const totalSubs = spaces.reduce((s, sp) => s + (sp._count?.subscriptions || 0), 0)
+  const avgMonthlyRate = spaces.length === 0 ? 0 : Math.round(spaces.reduce((s, sp) => s + sp.monthlyRate, 0) / spaces.length)
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Espaces de coworking</h1>
-          <p className="text-gray-600">Gérez vos espaces ouverts et leurs abonnements</p>
-        </div>
-        <Link href="/dashboard/espaces-coworking/nouveau" className="btn-primary">
-          <Plus className="h-5 w-5" />
-          Nouvel espace
-        </Link>
-      </div>
+    <div className="p-6 space-y-6 animate-fade-in">
+      <PageHeader
+        title="Espaces coworking"
+        description="Gestion des espaces ouverts et abonnements"
+        actions={
+          <Link href="/dashboard/espaces-coworking/nouveau">
+            <Button iconLeft={<Plus className="h-4 w-4" />}>Nouvel espace</Button>
+          </Link>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((s, i) => <StatCard key={i} {...s} />)}
-      </div>
+      <StatGrid cols={4}>
+        <KpiCard label="Espaces" value={spaces.length} icon={Laptop} tone="electric" loading={loading} />
+        <KpiCard label="Places totales" value={totalSpots} icon={Users} tone="info" loading={loading} />
+        <KpiCard label="Abonnés actifs" value={totalSubs} icon={Sparkles} tone="success" loading={loading} />
+        <KpiCard label="Tarif moyen" value={`${avgMonthlyRate} €/m`} icon={Plus} tone="gold" loading={loading} />
+      </StatGrid>
 
-      <div className="card">
-        <div className="p-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Rechercher un espace..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-10 form-input"
-            />
-          </div>
-        </div>
-      </div>
+      <FilterBar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Rechercher un espace..."
+      />
 
       {loading ? (
-        <div className="flex items-center justify-center p-12">
-          <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
-        </div>
-      ) : error ? (
-        <div className="card p-6 bg-red-50 text-red-700">{error}</div>
+        <Card className="p-12 text-center"><Spinner size="lg" /></Card>
+      ) : spaces.length === 0 ? (
+        <Card className="p-2">
+          <EmptyState
+            icon={Laptop}
+            title="Aucun espace coworking"
+            description="Crée ton premier espace pour proposer des abonnements à tes clients."
+            action={
+              <Link href="/dashboard/espaces-coworking/nouveau">
+                <Button iconLeft={<Plus className="h-4 w-4" />}>Créer un espace</Button>
+              </Link>
+            }
+          />
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {spaces.length === 0 && (
-            <div className="col-span-full card p-12 text-center text-gray-500">
-              Aucun espace trouvé.
-            </div>
-          )}
-          {spaces.map(space => {
-            const amenities = parseJsonArray(space.amenities)
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {spaces.map(s => {
+            const amenities = parseJsonArray(s.amenities)
             return (
-              <div key={space.id} className="card hover:shadow-lg transition-shadow">
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                          <Laptop className="h-5 w-5 text-primary-600" />
+              <Card key={s.id} variant="default" className="overflow-hidden group hover:shadow-soft-md transition-all duration-300">
+                <div className="relative h-32 bg-gradient-to-br from-electric-500 via-electric-700 to-ink-800 overflow-hidden">
+                  <div className="absolute inset-0 opacity-25" style={{
+                    backgroundImage: 'radial-gradient(circle at 70% 30%, rgba(201,162,39,0.5) 0, transparent 50%)',
+                  }} />
+                  <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
+                    <Badge tone="gold" size="sm" className="!bg-white/15 !text-white !ring-white/20 backdrop-blur">
+                      {s.totalSpots} places
+                    </Badge>
+                    <ActionMenu
+                      align="right"
+                      trigger={
+                        <div className="h-8 w-8 rounded-md bg-white/10 backdrop-blur ring-1 ring-white/20 inline-flex items-center justify-center text-white">
+                          <Edit className="h-3.5 w-3.5" />
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-900">{space.name}</h3>
-                      </div>
-                      {space.description && (
-                        <p className="text-sm text-gray-500 mt-2">{space.description}</p>
-                      )}
-                    </div>
-                    <span className={`status-badge ${space.isActive ? 'status-active' : 'bg-gray-100 text-gray-700'}`}>
-                      {space.isActive ? 'Actif' : 'Inactif'}
-                    </span>
+                      }
+                      items={[
+                        { label: 'Modifier', icon: Edit, href: `/dashboard/espaces-coworking/${s.id}` },
+                        'divider',
+                        { label: 'Supprimer', icon: Trash2, danger: true, onClick: () => setConfirmDelete(s) },
+                      ]}
+                    />
                   </div>
-
-                  <div className="space-y-2 text-sm text-gray-600 mb-4">
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-2 text-gray-400" />
-                      Capacité : <span className="ml-1 font-medium text-gray-900">{space.totalSpots} postes</span>
-                    </div>
-                    {space.center && (
-                      <div className="flex items-center">
-                        <MapPin className="h-4 w-4 mr-2 text-gray-400" />
-                        {space.center.name}
-                      </div>
+                  <div className="absolute bottom-3 left-3">
+                    <h3 className="text-lg font-semibold tracking-tight text-white">{s.name}</h3>
+                    {s.center && (
+                      <p className="text-2xs text-white/70 inline-flex items-center gap-1 mt-0.5">
+                        <MapPin className="h-3 w-3" />
+                        {s.center.name}
+                      </p>
                     )}
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                      {space._count.subscriptions} abonnement(s) actif(s)
+                  </div>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {s.description && (
+                    <p className="text-xs text-text-muted line-clamp-2">{s.description}</p>
+                  )}
+
+                  {/* Tarifs */}
+                  <div className="grid grid-cols-3 gap-2 py-3 border-y border-border">
+                    <div className="text-center">
+                      <p className="text-2xs text-text-subtle uppercase tracking-wider">Jour</p>
+                      <p className="text-sm font-semibold text-text nums-tabular">{s.dailyRate}€</p>
+                    </div>
+                    <div className="text-center border-x border-border">
+                      <p className="text-2xs text-text-subtle uppercase tracking-wider">Mois</p>
+                      <p className="text-sm font-semibold text-text nums-tabular">{s.monthlyRate}€</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-2xs text-text-subtle uppercase tracking-wider">An</p>
+                      <p className="text-sm font-semibold text-text nums-tabular">{s.yearlyRate}€</p>
                     </div>
                   </div>
 
+                  {/* Amenities */}
                   {amenities.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-500 mb-2">Équipements</p>
-                      <div className="flex flex-wrap gap-1">
-                        {amenities.map((a, i) => (
-                          <span key={i} className="px-2 py-1 text-xs bg-gray-100 rounded">{a}</span>
-                        ))}
-                      </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {amenities.slice(0, 4).map((a: string) => {
+                        const Icon = AMENITY_ICONS[a] || Sparkles
+                        return (
+                          <span
+                            key={a}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-medium rounded-md bg-surface-2 text-text-muted ring-1 ring-inset ring-border"
+                          >
+                            <Icon className="h-2.5 w-2.5" />
+                            {a}
+                          </span>
+                        )
+                      })}
+                      {amenities.length > 4 && (
+                        <span className="text-2xs text-text-subtle px-2 py-0.5">+{amenities.length - 4}</span>
+                      )}
                     </div>
                   )}
 
-                  <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-xs text-gray-500">Jour</p>
-                      <p className="text-sm font-bold text-gray-900">{space.dailyRate.toFixed(0)} €</p>
+                  {s._count?.subscriptions !== undefined && (
+                    <div className="flex items-center justify-between text-xs text-text-muted pt-2">
+                      <span>Abonnés actifs</span>
+                      <Badge tone="success" size="sm">{s._count.subscriptions}</Badge>
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Mois</p>
-                      <p className="text-sm font-bold text-primary-600">{space.monthlyRate.toFixed(0)} €</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">Année</p>
-                      <p className="text-sm font-bold text-gray-900">{space.yearlyRate.toFixed(0)} €</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-gray-100 flex justify-end gap-2">
-                    <Link
-                      href={`/dashboard/espaces-coworking/${space.id}`}
-                      className="p-2 text-gray-400 hover:text-gray-600 rounded hover:bg-gray-100"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Link>
-                    <button
-                      onClick={() => handleDelete(space)}
-                      disabled={deletingId === space.id}
-                      className="p-2 text-red-400 hover:text-red-600 rounded hover:bg-red-50 disabled:opacity-50"
-                    >
-                      {deletingId === space.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
-                  </div>
+                  )}
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDelete}
+        title={`Supprimer "${confirmDelete?.name}" ?`}
+        description="Tous les abonnements liés seront affectés."
+        confirmLabel="Supprimer"
+        tone="danger"
+        loading={deleting}
+      />
     </div>
   )
 }
