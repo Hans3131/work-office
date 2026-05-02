@@ -4,11 +4,13 @@ import { useState, FormEvent } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
-  Eye, EyeOff, Loader2, Sparkles, Building, Users, Shield, Activity,
-  CheckCircle2, ArrowRight, Quote,
+  Eye, EyeOff, Sparkles, Building, Users, Shield, Activity,
+  CheckCircle2, ArrowRight, MapPin, Calendar, Receipt, Mail,
+  TrendingUp,
 } from 'lucide-react'
-import { Button, Field, Input, Checkbox, Card, Badge } from '@/components/ui'
+import { Button, Field, Input, Checkbox, Badge } from '@/components/ui'
 import toast from 'react-hot-toast'
 
 export default function LoginPage() {
@@ -48,19 +50,28 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex bg-bg">
       {/* ============================================================
-          PANEL GAUCHE — Branding premium avec mesh gradient
+          PANEL GAUCHE — Photo de bureaux + overlay élégant
           ============================================================ */}
-      <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-ink-900">
-        {/* Mesh gradient layers */}
-        <div className="absolute inset-0">
-          <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full bg-electric-600/30 blur-[100px]" />
-          <div className="absolute top-20 right-0 w-[400px] h-[400px] rounded-full bg-gold-500/15 blur-[120px]" />
-          <div className="absolute bottom-0 left-0 w-[600px] h-[400px] rounded-full bg-primary-700/20 blur-[100px]" />
-        </div>
+      <div className="hidden lg:block lg:w-[55%] relative overflow-hidden">
+        {/* Image de fond : bureau coworking moderne */}
+        <Image
+          src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1600&q=80"
+          alt="Espace de coworking moderne WorkOffice"
+          fill
+          priority
+          quality={90}
+          className="object-cover"
+          sizes="(min-width: 1024px) 55vw, 0vw"
+        />
 
-        {/* Grid pattern subtle */}
+        {/* Overlay sombre dégradé pour lisibilité du texte */}
+        <div className="absolute inset-0 bg-gradient-to-br from-ink-900/85 via-ink-900/70 to-ink-800/60" />
+        {/* Overlay accent gold subtil en bas */}
+        <div className="absolute inset-0 bg-gradient-to-t from-ink-900/80 via-transparent to-transparent" />
+
+        {/* Grid pattern subtil */}
         <div
-          className="absolute inset-0 opacity-[0.04]"
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
           style={{
             backgroundImage:
               'linear-gradient(rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,1) 1px, transparent 1px)',
@@ -68,12 +79,12 @@ export default function LoginPage() {
           }}
         />
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-between p-12 w-full text-white">
-          {/* Top : logo */}
+        {/* Content overlay */}
+        <div className="relative z-10 flex flex-col justify-between h-full p-12 text-white">
+          {/* Logo */}
           <div className="flex items-center gap-3 animate-fade-in">
             <div className="relative h-11 w-11">
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-xl border border-white/10" />
+              <div className="absolute inset-0 rounded-2xl bg-white/15 backdrop-blur-xl border border-white/20" />
               <div className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-gold-400 ring-2 ring-ink-900" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <Sparkles className="h-5 w-5 text-white" strokeWidth={2} />
@@ -84,71 +95,83 @@ export default function LoginPage() {
                 <span className="text-lg font-semibold tracking-tight">WorkOffice</span>
                 <Badge tone="gold" size="sm">v2.0</Badge>
               </div>
-              <p className="text-2xs text-white/50 leading-none mt-1">Prestigia App</p>
+              <p className="text-2xs text-white/60 leading-none mt-1">Prestigia App</p>
             </div>
           </div>
 
-          {/* Middle : hero */}
-          <div className="space-y-8 animate-slide-up">
+          {/* Hero center */}
+          <div className="space-y-8 max-w-lg animate-slide-up">
             <div>
+              <Badge size="md" className="!bg-gold-400/15 !text-gold-300 !ring-gold-400/30 backdrop-blur mb-5">
+                <Sparkles className="h-3 w-3 mr-1" />
+                Plateforme SaaS premium
+              </Badge>
               <h1 className="text-4xl xl:text-5xl font-semibold tracking-tighter leading-[1.1]">
-                Pilotez vos centres
+                Gérez vos espaces
                 <br />
-                <span className="bg-gradient-to-r from-gold-300 via-gold-400 to-gold-500 bg-clip-text text-transparent">
-                  comme jamais.
+                de coworking
+                <br />
+                <span className="bg-gradient-to-r from-gold-300 via-gold-400 to-gold-200 bg-clip-text text-transparent">
+                  en toute simplicité.
                 </span>
               </h1>
-              <p className="mt-4 text-md text-white/70 max-w-md leading-relaxed">
-                La plateforme tout-en-un pour gérer la domiciliation, les salles, les courriers
-                et la facturation de vos espaces de coworking.
+              <p className="mt-5 text-md text-white/75 max-w-md leading-relaxed">
+                Domiciliation, salles de réunion, courriers, factures et analytics
+                temps réel — tout ce dont vous avez besoin sur une seule plateforme.
               </p>
             </div>
 
-            {/* Features list */}
-            <ul className="space-y-3">
+            {/* Feature icons grid (UI/UX premium) */}
+            <div className="grid grid-cols-2 gap-3 max-w-md">
               {[
-                'Domiciliation et gestion d\'entreprises',
-                'Réservation de salles et coworking',
-                'Facturation automatisée et suivi paiements',
-                'Analytics temps réel multi-centres',
-              ].map((f, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-white/80">
-                  <div className="h-5 w-5 rounded-full bg-gold-400/15 ring-1 ring-gold-400/30 inline-flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="h-3 w-3 text-gold-400" strokeWidth={2.5} />
+                { icon: Building, label: 'Domiciliation', desc: 'Multi-entreprises' },
+                { icon: Calendar, label: 'Réservations', desc: 'Salles & coworking' },
+                { icon: Receipt, label: 'Facturation', desc: 'Auto + suivi' },
+                { icon: TrendingUp, label: 'Analytics', desc: 'Temps réel' },
+              ].map(f => (
+                <div
+                  key={f.label}
+                  className="group flex items-center gap-3 p-3 rounded-xl bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-all"
+                >
+                  <div className="h-9 w-9 shrink-0 rounded-lg bg-gold-400/15 ring-1 ring-gold-400/30 inline-flex items-center justify-center group-hover:bg-gold-400/25 transition-colors">
+                    <f.icon className="h-4 w-4 text-gold-300" strokeWidth={1.75} />
                   </div>
-                  {f}
-                </li>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-white truncate">{f.label}</p>
+                    <p className="text-2xs text-white/60 truncate">{f.desc}</p>
+                  </div>
+                </div>
               ))}
-            </ul>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-white/10">
-              <div>
-                <p className="text-2xl font-semibold tracking-tighter nums-tabular">4</p>
-                <p className="text-2xs text-white/50 uppercase tracking-wider">Centres</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold tracking-tighter nums-tabular">99.9%</p>
-                <p className="text-2xs text-white/50 uppercase tracking-wider">Uptime</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold tracking-tighter nums-tabular">24/7</p>
-                <p className="text-2xs text-white/50 uppercase tracking-wider">Support</p>
-              </div>
             </div>
           </div>
 
-          {/* Bottom : testimonial + footer */}
-          <div className="space-y-4">
-            <div className="relative pl-6">
-              <Quote className="absolute left-0 top-0 h-4 w-4 text-gold-400/60" />
-              <blockquote className="text-sm text-white/80 italic leading-relaxed">
-                « Une refonte complète qui a divisé par 3 le temps passé sur la gestion administrative. »
-              </blockquote>
-              <p className="mt-2 text-2xs text-white/50">
-                — Sophie M., Manager · Centre Bruxelles
-              </p>
+          {/* Bottom : trust strip + stats */}
+          <div className="space-y-5">
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-4 pt-5 border-t border-white/10">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3 text-gold-400" />
+                  <p className="text-xl font-semibold tracking-tighter nums-tabular">4</p>
+                </div>
+                <p className="text-2xs text-white/50 uppercase tracking-wider mt-0.5">Centres</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <Users className="h-3 w-3 text-gold-400" />
+                  <p className="text-xl font-semibold tracking-tighter nums-tabular">99.9%</p>
+                </div>
+                <p className="text-2xs text-white/50 uppercase tracking-wider mt-0.5">Uptime</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <Shield className="h-3 w-3 text-gold-400" />
+                  <p className="text-xl font-semibold tracking-tighter nums-tabular">24/7</p>
+                </div>
+                <p className="text-2xs text-white/50 uppercase tracking-wider mt-0.5">Support</p>
+              </div>
             </div>
+
             <p className="text-2xs text-white/40">
               © {new Date().getFullYear()} Prestigia · Tous droits réservés
             </p>
@@ -157,7 +180,7 @@ export default function LoginPage() {
       </div>
 
       {/* ============================================================
-          PANEL DROIT — Formulaire de connexion
+          PANEL DROIT — Formulaire de connexion (inchangé, propre)
           ============================================================ */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md animate-slide-up">
@@ -185,7 +208,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Error banner */}
           {error && (
             <div className="mb-5 p-3 rounded-lg bg-danger-soft border border-danger/20 text-sm text-danger animate-slide-down">
               {error}
@@ -262,7 +284,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Demo accounts */}
           <div className="mt-8 pt-6 border-t border-border">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-medium text-text-muted">Comptes de démonstration</p>
@@ -272,7 +293,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => fillDemo('admin@workoffice.be', 'admin123')}
-                className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all group"
+                className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Shield className="h-3.5 w-3.5 text-gold-500" strokeWidth={2} />
@@ -283,7 +304,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => fillDemo('manager@workoffice.be', 'manager123')}
-                className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all group"
+                className="text-left p-3 rounded-lg border border-border bg-surface hover:bg-surface-2 hover:border-border-strong transition-all"
               >
                 <div className="flex items-center gap-2 mb-1">
                   <Users className="h-3.5 w-3.5 text-info" strokeWidth={2} />
