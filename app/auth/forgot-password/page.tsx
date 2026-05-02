@@ -2,7 +2,8 @@
 
 import { useState, FormEvent } from 'react'
 import Link from 'next/link'
-import { Mail, ArrowLeft, Loader2, CheckCircle } from 'lucide-react'
+import { Mail, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react'
+import { Button, Field, Input, Card } from '@/components/ui'
 import toast from 'react-hot-toast'
 
 export default function ForgotPasswordPage() {
@@ -33,67 +34,95 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-primary-50 px-4">
-      <div className="max-w-md w-full">
-        <div className="card p-8">
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Retour à la connexion
-          </Link>
+    <div className="min-h-screen flex items-center justify-center bg-bg p-6 relative overflow-hidden">
+      {/* Background mesh subtil */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-[400px] h-[400px] rounded-full bg-electric-200/40 blur-[100px]" />
+        <div className="absolute -bottom-40 -left-40 w-[400px] h-[400px] rounded-full bg-gold-200/30 blur-[100px]" />
+      </div>
 
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary-100 mb-4">
-              <Mail className="h-8 w-8 text-primary-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">Mot de passe oublié ?</h1>
-            <p className="text-gray-600 mt-2">
-              Entrez votre adresse email pour recevoir un lien de réinitialisation
-            </p>
-          </div>
+      <div className="relative w-full max-w-md animate-slide-up">
+        <Link
+          href="/auth/login"
+          className="inline-flex items-center gap-2 text-xs text-text-muted hover:text-text mb-6 transition-colors"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Retour à la connexion
+        </Link>
 
+        <Card variant="elevated" className="p-8">
           {sent ? (
-            <div className="text-center space-y-4">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+            <div className="text-center space-y-4 animate-fade-in">
+              <div className="relative inline-flex">
+                <div className="absolute inset-0 rounded-full bg-success/10 blur-xl" />
+                <div className="relative h-16 w-16 rounded-full bg-success-soft inline-flex items-center justify-center">
+                  <CheckCircle2 className="h-8 w-8 text-success" strokeWidth={1.75} />
+                </div>
               </div>
               <div>
-                <p className="font-medium text-gray-900">Email envoyé !</p>
-                <p className="text-sm text-gray-600 mt-2">
-                  Si un compte est associé à <strong>{email}</strong>, vous allez recevoir un lien
-                  de réinitialisation valable 1 heure.
+                <h1 className="text-xl font-semibold tracking-tight text-text">
+                  Email envoyé !
+                </h1>
+                <p className="text-sm text-text-muted mt-2">
+                  Si un compte est associé à <strong className="text-text">{email}</strong>,
+                  vous allez recevoir un lien de réinitialisation valable 1 heure.
                 </p>
               </div>
-              <Link href="/auth/login" className="btn-primary w-full">
-                Retour à la connexion
+              <Link href="/auth/login" className="block">
+                <Button variant="primary" fullWidth>
+                  Retour à la connexion
+                </Button>
               </Link>
+              <button
+                onClick={() => { setSent(false); setEmail('') }}
+                className="text-2xs text-text-subtle hover:text-text transition-colors"
+              >
+                Renvoyer un lien à une autre adresse
+              </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="form-label">Email professionnel</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                  placeholder="email@workoffice.be"
-                  className="form-input"
-                />
+            <>
+              <div className="text-center mb-6">
+                <div className="relative inline-flex mb-4">
+                  <div className="absolute inset-0 rounded-2xl bg-electric-500/10 blur-xl" />
+                  <div className="relative h-14 w-14 rounded-2xl bg-electric-50 dark:bg-electric-900/30 inline-flex items-center justify-center ring-1 ring-electric-200 dark:ring-electric-800">
+                    <Mail className="h-6 w-6 text-electric-600" strokeWidth={1.75} />
+                  </div>
+                </div>
+                <h1 className="text-xl font-semibold tracking-tight text-text">
+                  Mot de passe oublié ?
+                </h1>
+                <p className="text-sm text-text-muted mt-2">
+                  Entrez votre email et nous vous enverrons un lien de réinitialisation.
+                </p>
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="btn-primary w-full"
-              >
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Envoyer le lien
-              </button>
-            </form>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <Field label="Email professionnel" required>
+                  <Input
+                    type="email"
+                    placeholder="email@workoffice.be"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                    size="lg"
+                    autoFocus
+                  />
+                </Field>
+
+                <Button type="submit" fullWidth size="lg" loading={submitting}>
+                  Envoyer le lien
+                </Button>
+              </form>
+            </>
           )}
+        </Card>
+
+        <div className="mt-6 text-center">
+          <p className="text-2xs text-text-subtle">
+            <Sparkles className="h-3 w-3 inline mr-1 text-gold-500" />
+            WorkOffice · Prestigia App
+          </p>
         </div>
       </div>
     </div>
